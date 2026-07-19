@@ -1,0 +1,16 @@
+[project]
+name = "garmin-mcp-server"
+version = "0.1.0"
+description = "Personal MCP server exposing Garmin Connect data to Claude"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp==3.4.4",
+    "garminconnect==0.3.6",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

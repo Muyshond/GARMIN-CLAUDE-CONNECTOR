@@ -1,0 +1,24 @@
+services:
+  garmin-mcp:
+    build: .
+    image: garmin-mcp-server:local
+    container_name: garmin-mcp
+    restart: unless-stopped
+    ports:
+      - "8321:8321"
+    environment:
+      MCP_BEARER_TOKEN: ${MCP_BEARER_TOKEN:?set MCP_BEARER_TOKEN in .env}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      PORT: "8321"
+      GARMIN_TOKENSTORE_PATH: /data
+    volumes:
+      - garmin_tokens:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8321/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  garmin_tokens:
