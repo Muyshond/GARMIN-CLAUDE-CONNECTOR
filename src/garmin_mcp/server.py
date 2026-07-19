@@ -17,16 +17,44 @@ from __future__ import annotations
 import os
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import MultiAuth
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from garmin_mcp.auth import StaticBearerTokenVerifier
 from garmin_mcp.garmin_client import GarminClient
+from garmin_mcp.github_auth import SingleUserGitHubProvider
 
 MCP_BEARER_TOKEN = os.environ["MCP_BEARER_TOKEN"]
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL") or None
+GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID")
+GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET")
+ALLOWED_GITHUB_LOGIN = os.environ.get("ALLOWED_GITHUB_LOGIN")
 
-auth = StaticBearerTokenVerifier(token=MCP_BEARER_TOKEN, base_url=PUBLIC_BASE_URL)
+static_verifier = StaticBearerTokenVerifier(token=MCP_BEARER_TOKEN, base_url=PUBLIC_BASE_URL)
+
+if GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET and ALLOWED_GITHUB_LOGIN:
+    if not PUBLIC_BASE_URL:
+        raise RuntimeError(
+            "PUBLIC_BASE_URL must be set when GITHUB_CLIENT_ID/SECRET are configured "
+            "(GitHub OAuth needs the real public HTTPS URL to build redirect/metadata URLs)."
+        )
+    github_provider = SingleUserGitHubProvider(
+        client_id=GITHUB_CLIENT_ID,
+        client_secret=GITHUB_CLIENT_SECRET,
+        base_url=PUBLIC_BASE_URL,
+        allowed_login=ALLOWED_GITHUB_LOGIN,
+    )
+    # Claude Desktop/webapp's custom-connector UI drives the GitHub OAuth
+    # flow via DCR; curl/MCP Inspector/claude mcp add can still use the
+    # plain static bearer token. required_scopes=[] avoids MultiAuth
+    # inheriting GitHub's ["user"] scope requirement and enforcing it even
+    # on requests authenticated via the static verifier, whose tokens carry
+    # no scopes at all — each verifier already validates what it needs
+    # internally.
+    auth = MultiAuth(server=github_provider, verifiers=[static_verifier], required_scopes=[])
+else:
+    auth = static_verifier
 
 mcp = FastMCP(
     name="garmin-coach",

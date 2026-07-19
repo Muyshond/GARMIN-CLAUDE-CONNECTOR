@@ -158,11 +158,44 @@ section appears (this is a beta feature being rolled out) — if so, enter
 `Authorization: Bearer <your MCP_BEARER_TOKEN>` there and you're done.
 
 If only OAuth Client ID/Secret fields appear and there's nowhere to put a
-bearer token, the webapp can't be wired up to this particular server
-design yet. That's a deliberate stopping point (see the plan this project
-was built from) — a follow-up OAuth-proxy layer is the known next step,
-but only worth building if you actually need webapp access and Desktop
-isn't enough.
+bearer token, the webapp/Desktop custom-connector UI can't be wired up to
+the plain static token. Use the GitHub OAuth fallback below instead.
+
+### GitHub OAuth fallback (when there's no headers field)
+
+This adds a thin OAuth layer on top of the same server, using GitHub as
+the identity provider — not because GitHub is special, but because it's
+a trusted OAuth provider you already have an account with, and Claude's
+custom-connector UI only knows how to drive an OAuth handshake, not a
+raw header field. Only the one GitHub account you allow-list can ever
+get in; the static bearer token keeps working too (for curl, MCP
+Inspector, `claude mcp add --header`), since the server now accepts
+either.
+
+1. **Set `PUBLIC_BASE_URL`** in `.env` to your real hostname, e.g.
+   `https://garmin.muyshondt.synology.me` (no trailing slash). This is
+   required once you use the GitHub vars below — the OAuth layer needs
+   to know its own public URL to build redirect/metadata URLs.
+2. **Create a GitHub OAuth App**: github.com → Settings → Developer
+   settings → OAuth Apps → New OAuth App.
+   - Homepage URL: your `PUBLIC_BASE_URL`
+   - Authorization callback URL: `<PUBLIC_BASE_URL>/auth/callback`
+     (e.g. `https://garmin.muyshondt.synology.me/auth/callback`)
+   - Register, then generate a client secret.
+3. **Fill in `.env`**: `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`,
+   `ALLOWED_GITHUB_LOGIN` (your own GitHub username — anyone else's
+   GitHub login is rejected even if they somehow get the client ID).
+4. **Rebuild and restart**:
+   ```bash
+   docker compose build
+   docker compose up -d
+   ```
+5. In Claude Desktop/webapp's "Add custom connector", enter the server
+   URL and leave the OAuth Client ID/Secret fields blank — Claude
+   discovers and registers itself against your server's own OAuth
+   endpoints automatically (Dynamic Client Registration). You'll get a
+   GitHub login/consent screen the first time; after that, only your
+   allow-listed account can authorize.
 
 ## Notes on scope and safety
 
